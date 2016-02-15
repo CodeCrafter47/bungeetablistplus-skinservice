@@ -10,6 +10,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import spark.Spark;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -51,6 +52,8 @@ public class SkinService {
     }
 
     private void start() {
+
+        ipAddress(options.getHost());
 
         port(options.getPort());
 
