@@ -12,6 +12,8 @@ import java.util.Arrays;
 @Slf4j
 @Singleton
 public class StatsTracker {
+    private final static int MAX_TIME = 10080;
+
     private final SkinManager skinManager;
 
     @Inject
@@ -20,10 +22,10 @@ public class StatsTracker {
         new Thread(this::monitorQueueStats, "Stats Tracker Thread 1").start();
     }
 
-    private int[] queueSize = new int[1440];
-    private int[] requestsServed = new int[1440];
-    private int[] cachedRequests = new int[1440];
-    private int[] mojangRequests = new int[1440];
+    private int[] queueSize = new int[MAX_TIME];
+    private int[] requestsServed = new int[MAX_TIME];
+    private int[] cachedRequests = new int[MAX_TIME];
+    private int[] mojangRequests = new int[MAX_TIME];
     private int index = 0;
 
     public void onRequest() {
@@ -51,7 +53,7 @@ public class StatsTracker {
             synchronized (this) {
                 queueSize[index] = skinManager.getQueueSize();
                 index++;
-                if (index > 1440) {
+                if (index > MAX_TIME) {
                     index = 0;
                 }
                 queueSize[index] = 0;
@@ -67,7 +69,7 @@ public class StatsTracker {
         for (int i = 0; i < minutes; i++) {
             int i1 = index - i;
             if (i1 < 0) {
-                i1 = i1 + 1440;
+                i1 = i1 + MAX_TIME;
             }
             maxQueueSize = Math.max(maxQueueSize, queueSize[i1]);
         }
@@ -79,7 +81,7 @@ public class StatsTracker {
         for (int i = 0; i < minutes; i++) {
             int i1 = index - i;
             if (i1 < 0) {
-                i1 = i1 + 1440;
+                i1 = i1 + MAX_TIME;
             }
             avrgQueueSize += queueSize[i1];
         }
@@ -91,7 +93,7 @@ public class StatsTracker {
         for (int i = 0; i < minutes; i++) {
             int i1 = index - i;
             if (i1 < 0) {
-                i1 = i1 + 1440;
+                i1 = i1 + MAX_TIME;
             }
             result += requestsServed[i1];
         }
@@ -103,7 +105,7 @@ public class StatsTracker {
         for (int i = 0; i < minutes; i++) {
             int i1 = index - i;
             if (i1 < 0) {
-                i1 = i1 + 1440;
+                i1 = i1 + MAX_TIME;
             }
             result += cachedRequests[i1];
         }
@@ -115,9 +117,9 @@ public class StatsTracker {
         for (int i = 0; i < minutes; i++) {
             int i1 = index - i;
             if (i1 < 0) {
-                i1 = i1 + 1440;
+                i1 = i1 + MAX_TIME;
             }
-            result += requestsServed[i1];
+            result += mojangRequests[i1];
         }
         return result;
     }

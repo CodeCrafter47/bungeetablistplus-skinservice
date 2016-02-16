@@ -86,6 +86,12 @@ public class SkinService {
             attributes.put("cachedRequests1440", statsTracker.getCachedRequests(1440));
             attributes.put("mojangRequests1440", statsTracker.getMojangRequests(1440));
 
+            attributes.put("avrgQueueSize10080", statsTracker.getAvrgQueueSize(10080));
+            attributes.put("maxQueueSize10080", statsTracker.getMaxQueueSize(10080));
+            attributes.put("requests10080", statsTracker.getRequestsServed(10080));
+            attributes.put("cachedRequests10080", statsTracker.getCachedRequests(10080));
+            attributes.put("mojangRequests10080", statsTracker.getMojangRequests(10080));
+
             return new ModelAndView(attributes, "index.ftl");
         }, new FreeMarkerEngine());
 

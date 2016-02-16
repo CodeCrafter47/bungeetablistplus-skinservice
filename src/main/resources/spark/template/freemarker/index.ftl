@@ -81,6 +81,7 @@
                 <thead>
                 <tr>
                     <th>Type</th>
+                    <th>7 days</th>
                     <th>24 hours</th>
                     <th>1 hour</th>
                     <th>5 minutes</th>
@@ -89,33 +90,38 @@
                 <tbody>
                 <tr>
                     <td>Avrg. queue size</td>
-                    <td>${avrgQueueSize5}</td>
-                    <td>${avrgQueueSize60}</td>
+                    <td>${avrgQueueSize10080}</td>
                     <td>${avrgQueueSize1440}</td>
+                    <td>${avrgQueueSize60}</td>
+                    <td>${avrgQueueSize5}</td>
                 </tr>
                 <tr>
                     <td>Max. queue size</td>
-                    <td>${maxQueueSize5}</td>
-                    <td>${maxQueueSize60}</td>
+                    <td>${maxQueueSize10080}</td>
                     <td>${maxQueueSize1440}</td>
+                    <td>${maxQueueSize60}</td>
+                    <td>${maxQueueSize5}</td>
                 </tr>
                 <tr>
                     <td>API requests</td>
-                    <td>${requests5}</td>
-                    <td>${requests60}</td>
+                    <td>${requests10080}</td>
                     <td>${requests1440}</td>
+                    <td>${requests60}</td>
+                    <td>${requests5}</td>
                 </tr>
                 <tr>
                     <td>API requests answered from cache</td>
-                    <td>${cachedRequests5}</td>
-                    <td>${cachedRequests60}</td>
+                    <td>${cachedRequests10080}</td>
                     <td>${cachedRequests1440}</td>
+                    <td>${cachedRequests60}</td>
+                    <td>${cachedRequests5}</td>
                 </tr>
                 <tr>
                     <td>Skins registered to Mojang</td>
-                    <td>${mojangRequests5}</td>
-                    <td>${mojangRequests60}</td>
+                    <td>${mojangRequests10080}</td>
                     <td>${mojangRequests1440}</td>
+                    <td>${mojangRequests60}</td>
+                    <td>${mojangRequests5}</td>
                 </tr>
                 </tbody>
             </table>
