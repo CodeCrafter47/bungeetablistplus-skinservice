@@ -6,17 +6,23 @@ import com.google.common.base.Preconditions;
 import com.google.gson.Gson;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
+import freemarker.template.Configuration;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import spark.ModelAndView;
 import spark.Spark;
+import spark.template.freemarker.FreeMarkerEngine;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
 import java.util.Base64;
+import java.util.HashMap;
+import java.util.Map;
 
+import static java.awt.Color.red;
 import static spark.Spark.*;
 
 @Singleton
@@ -57,6 +63,37 @@ public class SkinService {
 
         port(options.getPort());
 
+        staticFileLocation("/static");
+
+        get("/index.html", "text/html", (request, response) -> {
+            Map<String, Object> attributes = new HashMap<>();
+
+            attributes.put("avrgQueueSize5", statsTracker.getAvrgQueueSize(5));
+            attributes.put("maxQueueSize5", statsTracker.getMaxQueueSize(5));
+            attributes.put("requests5", statsTracker.getRequestsServed(5));
+            attributes.put("cachedRequests5", statsTracker.getCachedRequests(5));
+            attributes.put("mojangRequests5", statsTracker.getMojangRequests(5));
+
+            attributes.put("avrgQueueSize60", statsTracker.getAvrgQueueSize(60));
+            attributes.put("maxQueueSize60", statsTracker.getMaxQueueSize(60));
+            attributes.put("requests60", statsTracker.getRequestsServed(60));
+            attributes.put("cachedRequests60", statsTracker.getCachedRequests(60));
+            attributes.put("mojangRequests60", statsTracker.getMojangRequests(60));
+
+            attributes.put("avrgQueueSize1440", statsTracker.getAvrgQueueSize(1440));
+            attributes.put("maxQueueSize1440", statsTracker.getMaxQueueSize(1440));
+            attributes.put("requests1440", statsTracker.getRequestsServed(1440));
+            attributes.put("cachedRequests1440", statsTracker.getCachedRequests(1440));
+            attributes.put("mojangRequests1440", statsTracker.getMojangRequests(1440));
+
+            return new ModelAndView(attributes, "index.ftl");
+        }, new FreeMarkerEngine());
+
+        get("/", "text/html", (req, res) -> {
+            res.redirect("/index.html");
+            return null;
+        });
+
         post("/api/customhead", (req, res) -> {
             statsTracker.onRequest();
             String base64 = req.body();
@@ -88,7 +125,10 @@ public class SkinService {
             return new ResponseError("ERROR");
         }, o -> gson.get().toJson(o));
 
-        exception(Exception.class, (e, request, response) -> response.body("{\"state\": \"ERROR\"}"));
+        exception(Exception.class, (e, request, response) -> {
+            log.error("Unknown error", e);
+            halt(500);
+        });
     }
 
     @Data

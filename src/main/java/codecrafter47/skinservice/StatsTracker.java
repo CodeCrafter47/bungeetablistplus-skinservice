@@ -18,30 +18,29 @@ public class StatsTracker {
     public StatsTracker(SkinManager skinManager) {
         this.skinManager = skinManager;
         new Thread(this::monitorQueueStats, "Stats Tracker Thread 1").start();
-        new Thread(this::printStats, "Stats Tracker Thread 2").start();
     }
 
-    private int maxQueueLength = 0;
-    private TIntIntMap queueSize = new TIntIntHashMap(20, 0.5f, -1, 0);
-    private int requestsServed = 0;
-    private int cachedRequests = 0;
-    private int mojangRequests = 0;
+    private int[] queueSize = new int[1440];
+    private int[] requestsServed = new int[1440];
+    private int[] cachedRequests = new int[1440];
+    private int[] mojangRequests = new int[1440];
+    private int index = 0;
 
     public void onRequest() {
         synchronized (this) {
-            requestsServed++;
+            requestsServed[index]++;
         }
     }
 
     public void onCachedRequest() {
         synchronized (this) {
-            cachedRequests++;
+            cachedRequests[index]++;
         }
     }
 
     public void onMojangRequest() {
         synchronized (this) {
-            mojangRequests++;
+            mojangRequests[index]++;
         }
     }
 
@@ -50,31 +49,76 @@ public class StatsTracker {
         while (true) {
             Thread.sleep(60000);
             synchronized (this) {
-                maxQueueLength = Math.max(maxQueueLength, skinManager.getQueueSize());
-                queueSize.increment(skinManager.getQueueSize());
+                queueSize[index] = skinManager.getQueueSize();
+                index++;
+                if (index > 1440) {
+                    index = 0;
+                }
+                queueSize[index] = 0;
+                requestsServed[index] = 0;
+                cachedRequests[index] = 0;
+                mojangRequests[index] = 0;
             }
         }
     }
 
-    @SneakyThrows
-    private void printStats() {
-        Thread.sleep(300000);
-        while (true) {
-            synchronized (this) {
-                log.info("Stats:");
-                log.info("Max. queue length: " + maxQueueLength);
-                log.info("Avg. queue length: " + Arrays.stream(queueSize.keys()).mapToDouble(size -> size * queueSize.get(size)).sum() / Arrays.stream(queueSize.values()).sum());
-                log.info("Requests: " + requestsServed);
-                log.info("Served from cache: " + cachedRequests);
-                log.info("from Mojang: " + mojangRequests);
-
-                maxQueueLength = 0;
-                queueSize.clear();
-                requestsServed = 0;
-                cachedRequests = 0;
-                mojangRequests = 0;
+    public int getMaxQueueSize(int minutes) {
+        int maxQueueSize = 0;
+        for (int i = 0; i < minutes; i++) {
+            int i1 = index - i;
+            if (i1 < 0) {
+                i1 = i1 + 1440;
             }
-            Thread.sleep(24 * 3600 * 1000);
+            maxQueueSize = Math.max(maxQueueSize, queueSize[i1]);
         }
+        return maxQueueSize;
+    }
+
+    public int getAvrgQueueSize(int minutes) {
+        int avrgQueueSize = 0;
+        for (int i = 0; i < minutes; i++) {
+            int i1 = index - i;
+            if (i1 < 0) {
+                i1 = i1 + 1440;
+            }
+            avrgQueueSize += queueSize[i1];
+        }
+        return avrgQueueSize / minutes;
+    }
+
+    public int getRequestsServed(int minutes) {
+        int result = 0;
+        for (int i = 0; i < minutes; i++) {
+            int i1 = index - i;
+            if (i1 < 0) {
+                i1 = i1 + 1440;
+            }
+            result += requestsServed[i1];
+        }
+        return result;
+    }
+
+    public int getCachedRequests(int minutes) {
+        int result = 0;
+        for (int i = 0; i < minutes; i++) {
+            int i1 = index - i;
+            if (i1 < 0) {
+                i1 = i1 + 1440;
+            }
+            result += cachedRequests[i1];
+        }
+        return result;
+    }
+
+    public int getMojangRequests(int minutes) {
+        int result = 0;
+        for (int i = 0; i < minutes; i++) {
+            int i1 = index - i;
+            if (i1 < 0) {
+                i1 = i1 + 1440;
+            }
+            result += requestsServed[i1];
+        }
+        return result;
     }
 }
