@@ -53,7 +53,7 @@ public class StatsTracker {
             synchronized (this) {
                 queueSize[index] = skinManager.getQueueSize();
                 index++;
-                if (index > MAX_TIME) {
+                if (index >= MAX_TIME) {
                     index = 0;
                 }
                 queueSize[index] = 0;
