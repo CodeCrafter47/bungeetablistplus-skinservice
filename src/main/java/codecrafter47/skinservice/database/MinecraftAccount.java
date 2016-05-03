@@ -9,4 +9,12 @@ public class MinecraftAccount {
     private String email;
     private String password;
     private UUID uuid;
+
+    @Override
+    public String toString() {
+        return "MinecraftAccount{" +
+                "email='" + email + '\'' +
+                ", uuid=" + uuid +
+                '}';
+    }
 }
