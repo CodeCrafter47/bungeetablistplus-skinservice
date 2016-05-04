@@ -47,7 +47,6 @@
                 <li class="active"><a href="#">Home</a></li>
                 <li><a href="#about">About</a></li>
                 <li><a href="#status">Stats</a></li>
-                <li><a href="#contact">Contact</a></li>
                 <li>
                     <a href="https://github.com/CodeCrafter47/bungeetablistplus-skinservice">Github</a>
                 </li>
@@ -127,25 +126,6 @@
             </table>
         </div>
     </div>
-
-    <div class="page-header">
-        <h1>Contact</h1>
-    </div>
-
-    <p>
-        <a type="button" class="btn btn-lg btn-default"
-                href="https://github.com/CodeCrafter47">Find me on
-            github.com
-        </a>
-        <a type="button" class="btn btn-lg btn-default"
-                href="https://www.spigotmc.org/members/codecrafter47.9041/">
-            Find me on spigotmc.org
-        </a>
-        <a type="button" class="btn btn-lg btn-default"
-                href="mailto:Flo.e3@gmx.de">
-            Write an e-mail
-        </a>
-    </p>
 </div> <!-- /container -->
 
 

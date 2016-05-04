@@ -234,8 +234,8 @@ public class SkinManager {
                 return;
             }
 
-            // wait 30 seconds for mojang servers to update skin
-            Thread.sleep(30000);
+            // wait 25 seconds for mojang servers to update skin
+            Thread.sleep(25000);
 
             // check whether we are allowed to fetch data for this skin again?
             while (System.currentTimeMillis() - lastSkinRequest < 60000) {

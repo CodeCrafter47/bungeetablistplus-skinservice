@@ -111,7 +111,7 @@
         <dependency>
             <groupId>codecrafter47</groupId>
             <artifactId>minecraft-change-skin</artifactId>
-            <version>0.1.3.1-SNAPSHOT</version>
+            <version>0.1.3.2-SNAPSHOT</version>
             <scope>compile</scope>
         </dependency>
         <dependency>
