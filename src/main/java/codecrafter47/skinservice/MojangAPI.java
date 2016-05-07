@@ -19,12 +19,9 @@
 package codecrafter47.skinservice;
 
 import com.google.common.base.Charsets;
-import com.google.common.base.Preconditions;
 import com.google.gson.Gson;
 import com.google.inject.Singleton;
-import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-import sun.java2d.cmm.Profile;
 
 import javax.annotation.Nullable;
 import java.io.BufferedReader;
@@ -36,7 +33,6 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
-import java.util.regex.Pattern;
 
 @Slf4j
 @Singleton
