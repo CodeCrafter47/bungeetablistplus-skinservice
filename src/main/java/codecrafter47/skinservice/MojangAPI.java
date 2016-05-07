@@ -23,6 +23,8 @@ import com.google.common.base.Preconditions;
 import com.google.gson.Gson;
 import com.google.inject.Singleton;
 import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
+import sun.java2d.cmm.Profile;
 
 import javax.annotation.Nullable;
 import java.io.BufferedReader;
@@ -36,6 +38,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
+@Slf4j
 @Singleton
 public class MojangAPI {
 
@@ -71,7 +74,7 @@ public class MojangAPI {
             }
             return null;
         } catch (Throwable e) {
-            e.printStackTrace();
+            log.error("Unexpected exception", e);
         }
         return null;
 
@@ -91,7 +94,7 @@ public class MojangAPI {
                 return new Skin(skin.properties.get(0).value, skin.properties.get(0).signature);
             }
         } catch (Throwable e) {
-            e.printStackTrace();
+            log.error("Unexpected exception", e);
         }
         return null;
 
