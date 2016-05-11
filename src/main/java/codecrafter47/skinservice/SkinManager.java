@@ -168,8 +168,8 @@ public class SkinManager {
                     createSkin(skinRequest);
                 } catch (Throwable th) {
                     log.error("Unexpected Exception", th);
-                    stop = true;
                     skinRequest.setError(true);
+                    Thread.sleep(900000);
                 }
             }
             accounts--;
@@ -238,12 +238,14 @@ public class SkinManager {
             Thread.sleep(25000);
 
             // check whether we are allowed to fetch data for this skin again?
-            while (System.currentTimeMillis() - lastSkinRequest < 90000) {
+            while (System.currentTimeMillis() - lastSkinRequest < 60000) {
                 Thread.sleep(1000);
             }
 
             // fetch new skin
             Skin newSkin = mojangAPI.fetchSkin(account.getUuid());
+
+            lastSkinRequest = System.currentTimeMillis();
 
             String json = new String(Base64.getDecoder().decode(newSkin.getSkin()));
             Map<String, Object> map = gson.get().fromJson(json, (Type) LinkedTreeMap.class);

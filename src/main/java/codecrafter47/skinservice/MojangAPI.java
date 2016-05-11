@@ -26,6 +26,7 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nullable;
 import java.io.BufferedReader;
 import java.io.DataOutputStream;
+import java.io.IOException;
 import java.io.InputStreamReader;
 import java.lang.reflect.Type;
 import java.net.HttpURLConnection;
@@ -46,29 +47,10 @@ public class MojangAPI {
     };
 
     @Nullable
-    private String fetchUUID(final String player) {
-        HttpURLConnection connection = null;
+    public Skin fetchSkin(UUID uuid) {
         try {
-            connection = (HttpURLConnection) new URL(
-                    "https://api.mojang.com/profiles/minecraft").
-                    openConnection();
-            connection.setRequestMethod("POST");
-            connection.setRequestProperty("Content-Type", "application/json");
-            connection.setUseCaches(false);
-            connection.setDoInput(true);
-            connection.setDoOutput(true);
-            try (DataOutputStream out = new DataOutputStream(connection.
-                    getOutputStream())) {
-                out.write(("[\"" + player + "\"]").getBytes(Charsets.UTF_8));
-                out.flush();
-            }
-            BufferedReader reader = new BufferedReader(new InputStreamReader(
-                    connection.getInputStream(), Charsets.UTF_8));
-            Profile[] profiles = gson.get().fromJson(reader, (Type) Profile[].class);
-            if (profiles != null && profiles.length >= 1) {
-                return profiles[0].id;
-            }
-            return null;
+            Skin skin = fetchSkin0(uuid, 10);
+            if (skin != null) return skin;
         } catch (Throwable e) {
             log.error("Unexpected exception", e);
         }
@@ -76,24 +58,24 @@ public class MojangAPI {
 
     }
 
-    @Nullable
-    public Skin fetchSkin(UUID uuid) {
-        try {
-            String uuidWithoutDashes = uuid.toString().replace("-", "");
-            HttpURLConnection connection = (HttpURLConnection) new URL(
-                    "https://sessionserver.mojang.com/session/minecraft/profile/" + uuidWithoutDashes + "?unsigned=false").
-                    openConnection();
-            BufferedReader reader = new BufferedReader(new InputStreamReader(
-                    connection.getInputStream(), Charsets.UTF_8));
-            SkinProfile skin = gson.get().fromJson(reader, (Type) SkinProfile.class);
-            if (skin != null && skin.properties != null && !skin.properties.isEmpty()) {
-                return new Skin(skin.properties.get(0).value, skin.properties.get(0).signature);
-            }
-        } catch (Throwable e) {
-            log.error("Unexpected exception", e);
+    private Skin fetchSkin0(UUID uuid, int retries) throws IOException, InterruptedException {
+        String uuidWithoutDashes = uuid.toString().replace("-", "");
+        HttpURLConnection connection = (HttpURLConnection) new URL(
+                "https://sessionserver.mojang.com/session/minecraft/profile/" + uuidWithoutDashes + "?unsigned=false").
+                openConnection();
+        if (connection.getResponseCode() == 429 && retries > 0) {
+            connection.disconnect();
+            Thread.sleep(5000);
+            return fetchSkin0(uuid, retries - 1);
+        }
+        BufferedReader reader = new BufferedReader(new InputStreamReader(
+                connection.getInputStream(), Charsets.UTF_8));
+        SkinProfile skin = gson.get().fromJson(reader, (Type) SkinProfile.class);
+        connection.disconnect();
+        if (skin != null && skin.properties != null && !skin.properties.isEmpty()) {
+            return new Skin(skin.properties.get(0).value, skin.properties.get(0).signature);
         }
         return null;
-
     }
 
     private static class Profile {
