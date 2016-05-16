@@ -1,21 +1,18 @@
 package codecrafter47.skinservice;
 
+import codecrafter47.skinservice.database.Database;
 import codecrafter47.skinservice.database.MinecraftAccount;
+import codecrafter47.skinservice.util.ImageWrapper;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
-import com.google.gson.Gson;
-import com.google.gson.internal.LinkedTreeMap;
-import de.janmm14.minecraftchangeskin.api.Callback;
 import de.janmm14.minecraftchangeskin.api.SkinChangeParams;
 import de.janmm14.minecraftchangeskin.api.SkinChanger;
 import de.janmm14.minecraftchangeskin.api.SkinChangerResult;
-import lombok.Data;
-import lombok.RequiredArgsConstructor;
+import lombok.AllArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
-import javax.annotation.Nullable;
 import javax.imageio.ImageIO;
 import javax.inject.Inject;
 import javax.inject.Provider;
@@ -23,21 +20,17 @@ import javax.inject.Singleton;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
-import java.lang.reflect.Type;
 import java.net.URL;
-import java.nio.ByteBuffer;
-import java.util.Arrays;
-import java.util.Base64;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -45,29 +38,27 @@ import java.util.stream.Collectors;
 @Slf4j
 public class SkinManager {
 
-    private final ThreadLocal<Gson> gson = new ThreadLocal<Gson>() {
-        @Override
-        protected Gson initialValue() {
-            return new Gson();
-        }
-    };
-
     private final Database database;
     private final MojangAPI mojangAPI;
-    private final Provider<StatsTracker> statsTrackerProvider;
+    private final StatsTracker statsTracker;
     private final BlockingQueue<SkinRequest> queue = new LinkedBlockingQueue<>();
     private final List<SkinRequest> secondaryQueue = Collections.synchronizedList(new LinkedList<>());
-    private final Cache<Head, SkinRequest> requestedHeads = CacheBuilder.newBuilder().expireAfterAccess(120, TimeUnit.MINUTES).build();
-    private int accounts = 0;
+
+    private final Cache<ImageWrapper, SkinRequest> requestMap =
+            CacheBuilder.newBuilder()
+                    .concurrencyLevel(Runtime.getRuntime().availableProcessors())
+                    .expireAfterAccess(30, TimeUnit.MINUTES).build();
+
+    private final AtomicInteger accounts = new AtomicInteger(0);
 
     @Inject
-    public SkinManager(Database database, MojangAPI mojangAPI, Provider<StatsTracker> statsTrackerProvider) {
+    public SkinManager(Database database, MojangAPI mojangAPI, StatsTracker statsTracker) {
         this.database = database;
         this.mojangAPI = mojangAPI;
-        this.statsTrackerProvider = statsTrackerProvider;
+        this.statsTracker = statsTracker;
         for (MinecraftAccount minecraftAccount : database.getAccounts()) {
             new SkinUpdater(minecraftAccount);
-            accounts++;
+            accounts.getAndIncrement();
         }
     }
 
@@ -77,18 +68,21 @@ public class SkinManager {
 
     @Synchronized
     @SneakyThrows
-    public SkinRequest requestSkin(byte[] head, String ip) {
-        return requestedHeads.get(Head.of(head), () -> {
-            SkinRequest request = new SkinRequest(head, ip);
-            codecrafter47.skinservice.database.Head head1 = database.getHead(head);
-            if (head1 != null) {
-                request.setResult(new Skin(head1.getSkin(), head1.getSignature()));
-                request.setFinished(true);
-                return request;
+    public SkinRequest requestSkin(ImageWrapper image, String ip) {
+        return requestMap.get(image, () -> {
+            SkinRequest skinRequest = new SkinRequest(image, ip);
+
+            SkinInfo skinInfo = database.getSkin(image);
+            if (skinInfo != null) {
+                skinRequest.setResult(skinInfo);
+                skinRequest.setFinished(true);
+                return skinRequest;
             }
-            secondaryQueue.add(request);
+
+            requestMap.put(image, skinRequest);
+            secondaryQueue.add(skinRequest);
             updateQueues();
-            return request;
+            return skinRequest;
         });
     }
 
@@ -105,44 +99,12 @@ public class SkinManager {
         }
 
         int timeLeft = 1;
+        int accounts = this.accounts.get();
         for (SkinRequest skinRequest : queue) {
-            skinRequest.setTimeLeft(accounts > 0 ? (timeLeft++)/accounts : Integer.MAX_VALUE);
+            skinRequest.setTimeLeft(accounts > 0 ? (timeLeft++)/ accounts : Integer.MAX_VALUE);
         }
         for (SkinRequest skinRequest : secondaryQueue) {
-            skinRequest.setTimeLeft(accounts > 0 ? (timeLeft++)/accounts : Integer.MAX_VALUE);
-        }
-    }
-
-    @Data
-    @RequiredArgsConstructor
-    public class SkinRequest {
-        private final byte[] head;
-        private final String ip;
-        private boolean finished = false;
-        private boolean error = false;
-        private int timeLeft = 1;
-        private Skin result = null;
-    }
-
-    private static final class Head {
-        private final byte[] bytes;
-
-        private Head(byte[] bytes) {
-            this.bytes = bytes;
-        }
-
-        static Head of(byte[] bytes) {
-            return new Head(bytes);
-        }
-
-        @Override
-        public int hashCode() {
-            return Arrays.hashCode(bytes);
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            return obj instanceof Head && Arrays.equals(bytes, ((Head) obj).bytes);
+            skinRequest.setTimeLeft(accounts > 0 ? (timeLeft++)/ accounts : Integer.MAX_VALUE);
         }
     }
 
@@ -169,21 +131,19 @@ public class SkinManager {
                 } catch (Throwable th) {
                     log.error("Unexpected Exception", th);
                     skinRequest.setError(true);
+                    skinRequest.setFinished(true);
+                    accounts.getAndDecrement();
                     Thread.sleep(900000);
+                    accounts.getAndIncrement();
                 }
             }
-            accounts--;
+            accounts.getAndDecrement();
         }
 
         private void createSkin(SkinRequest skinRequest) throws InterruptedException, IOException {
             // save image
-            int[] rgb = new int[64];
-            ByteBuffer.wrap(skinRequest.getHead()).asIntBuffer().get(rgb);
-
-            BufferedImage skin = new BufferedImage(64, 64, BufferedImage.TYPE_INT_ARGB);
-            skin.setRGB(8, 8, 8, 8, rgb, 0, 8);
             File tempFile = File.createTempFile("skin", "png");
-            ImageIO.write(skin, "png", tempFile);
+            ImageIO.write(skinRequest.getImage().getImage(), "png", tempFile);
 
             // change skin
             SkinChangeParams params = SkinChangeParams.Builder.create()
@@ -195,14 +155,11 @@ public class SkinManager {
             AtomicBoolean finished = new AtomicBoolean(false);
             AtomicReference<SkinChangerResult> result = new AtomicReference<>();
 
-            SkinChanger.changeSkin(params, new Callback<SkinChangerResult>() {
-                @Override
-                public void done(@Nullable SkinChangerResult skinChangerResult, @Nullable Throwable throwable) {
-                    result.set(skinChangerResult);
-                    finished.set(true);
-                    if (throwable != null) {
-                        log.error("Error fetching skin " + skinRequest, throwable);
-                    }
+            SkinChanger.changeSkin(params, (skinChangerResult, throwable) -> {
+                result.set(skinChangerResult);
+                finished.set(true);
+                if (throwable != null) {
+                    log.error("Error fetching skin " + skinRequest, throwable);
                 }
             });
 
@@ -243,18 +200,13 @@ public class SkinManager {
             }
 
             // fetch new skin
-            Skin newSkin = mojangAPI.fetchSkin(account.getUuid());
+            SkinInfo newSkin = mojangAPI.fetchSkin(account.getUuid());
 
             lastSkinRequest = System.currentTimeMillis();
 
-            String json = new String(Base64.getDecoder().decode(newSkin.getSkin()));
-            Map<String, Object> map = gson.get().fromJson(json, (Type) LinkedTreeMap.class);
-            String skinURL = (String) ((Map) ((Map) map.get("textures")).get("SKIN")).get("url");
-            BufferedImage image = ImageIO.read(new URL(skinURL));
-            BufferedImage head = image.getSubimage(8, 8, 8, 8);
-            int[] rgb2 = head.getRGB(0, 0, 8, 8, null, 0, 8);
+            BufferedImage image = ImageIO.read(new URL(newSkin.getSkinURL()));
 
-            if (!Arrays.equals(rgb, rgb2)) {
+            if (!skinRequest.getImage().equals(new ImageWrapper(image))) {
                 log.error("Skin is different from requested skin!");
                 skinRequest.setError(true);
                 return;
@@ -262,8 +214,8 @@ public class SkinManager {
 
             skinRequest.setResult(newSkin);
             skinRequest.setFinished(true);
-            database.saveHead(skinRequest.getHead(), newSkin.getSkin(), newSkin.getSignature());
-            statsTrackerProvider.get().onMojangRequest();
+            database.saveSkin(skinRequest.getImage(), newSkin.getSkinURL(), newSkin.getTexturePropertyValue(), newSkin.getTexturePropertySignature());
+            statsTracker.onMojangRequest();
         }
     }
 }

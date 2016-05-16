@@ -1,6 +1,5 @@
 package codecrafter47.skinservice;
 
-import codecrafter47.skinservice.database.Model;
 import com.google.inject.AbstractModule;
 import com.google.inject.Provides;
 import org.sql2o.Sql2o;
@@ -21,7 +20,6 @@ public class SkinServiceModule extends AbstractModule {
     @Override
     protected void configure() {
         bind(CommandLineOptions.class).toInstance(commandLineOptions);
-        bind(Model.class).to(Database.class);
     }
 
     @Provides

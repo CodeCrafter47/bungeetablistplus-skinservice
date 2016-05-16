@@ -46,6 +46,7 @@
             <ul class="nav navbar-nav">
                 <li class="active"><a href="#">Home</a></li>
                 <li><a href="#about">About</a></li>
+                <li><a href="#usage">Usage</a></li>
                 <li><a href="#status">Stats</a></li>
                 <li>
                     <a href="https://github.com/CodeCrafter47/bungeetablistplus-skinservice">Github</a>
@@ -56,11 +57,6 @@
 </nav>
 
 <div class="container theme-showcase" role="main">
-    <div class="alert alert-success" role="alert">
-        This service allows user of the BungeeTabListPlus plugin to use any
-        image for the heads in the tab list.
-    </div>
-
     <div class="page-header">
         <h1><a name="about"></a>About</h1>
     </div>
@@ -69,6 +65,42 @@
                 href="https://www.spigotmc.org/resources/bungeetablistplus.313/">BungeeTabListPlus</a>
         plugin to allow the users to use custom images for the heads in the tab
         list.</p>
+
+    <div class="page-header">
+        <h1><a name="usage"></a>Usage</h1>
+    </div>
+    <h2>Requests</h2>
+    <pre>PUT http://skinservice.codecrafter47.dyndns.eu/api/v2/register_face</pre>
+    <p>Register a skin with a given face. A 8x8 px png image must be attached as
+        "file" part of the request.</p>
+    <pre>PUT http://skinservice.codecrafter47.dyndns.eu/api/v2/register_head</pre>
+    <p>Register a skin with a given head. A png image must be attached as "file"
+        part of the request. You can either use a 32x16 or 64x16 px image
+        depending on whether you want a head overlay or not.</p>
+    <pre>PUT http://skinservice.codecrafter47.dyndns.eu/api/v2/register_skin</pre>
+    <p>Register a skin. A 64x64 px png image must be attached as "file" part of
+        the request.</p>
+
+    <h2>Response</h2>
+    <p>If your request is successful the following response is sent:</p>
+    <pre>{
+    "state": "SUCCESS",
+    "texturePropertyValue": "&lt;value of a textures profile property associated with this skin&gt;",
+    "texturePropertySignature": "&lt;signature for the above property&gt;",
+    "skinUrl": "&lt;url of the skin image on mojang servers&gt;"
+}</pre>
+    <p>If your request is waiting to be processed the following response is
+        sent. It is the most common. If you get it you should repeat the request
+        in a few seconds until you get the above response.</p>
+    <pre>{
+    "state": "QUEUED",
+    "timeLeft": "&lt;Estimate time left until the request will be processed in minutes&gt;"
+}</pre>
+    <p>If an error occurs you will get the following response:</p>
+    <pre>{
+    "state": "ERROR",
+    "errorMessage": "&lt;Description of the error&gt;"
+}</pre>
 
     <div class="page-header">
         <h1><a name="status"></a>Stats</h1>
@@ -102,21 +134,7 @@
                     <td>${maxQueueSize5}</td>
                 </tr>
                 <tr>
-                    <td>API requests</td>
-                    <td>${requests10080}</td>
-                    <td>${requests1440}</td>
-                    <td>${requests60}</td>
-                    <td>${requests5}</td>
-                </tr>
-                <tr>
-                    <td>API requests answered from cache</td>
-                    <td>${cachedRequests10080}</td>
-                    <td>${cachedRequests1440}</td>
-                    <td>${cachedRequests60}</td>
-                    <td>${cachedRequests5}</td>
-                </tr>
-                <tr>
-                    <td>Skins registered to Mojang</td>
+                    <td>Skins registered</td>
                     <td>${mojangRequests10080}</td>
                     <td>${mojangRequests1440}</td>
                     <td>${mojangRequests60}</td>

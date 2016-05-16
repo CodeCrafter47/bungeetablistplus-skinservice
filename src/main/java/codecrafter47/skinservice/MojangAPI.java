@@ -20,6 +20,7 @@ package codecrafter47.skinservice;
 
 import com.google.common.base.Charsets;
 import com.google.gson.Gson;
+import com.google.gson.internal.LinkedTreeMap;
 import com.google.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
 
@@ -32,7 +33,9 @@ import java.lang.reflect.Type;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Slf4j
@@ -46,19 +49,12 @@ public class MojangAPI {
         }
     };
 
-    @Nullable
-    public Skin fetchSkin(UUID uuid) {
-        try {
-            Skin skin = fetchSkin0(uuid, 10);
-            if (skin != null) return skin;
-        } catch (Throwable e) {
-            log.error("Unexpected exception", e);
-        }
-        return null;
+    public SkinInfo fetchSkin(UUID uuid) throws IOException, InterruptedException {
+        return fetchSkin0(uuid, 10);
 
     }
 
-    private Skin fetchSkin0(UUID uuid, int retries) throws IOException, InterruptedException {
+    private SkinInfo fetchSkin0(UUID uuid, int retries) throws IOException, InterruptedException {
         String uuidWithoutDashes = uuid.toString().replace("-", "");
         HttpURLConnection connection = (HttpURLConnection) new URL(
                 "https://sessionserver.mojang.com/session/minecraft/profile/" + uuidWithoutDashes + "?unsigned=false").
@@ -73,15 +69,12 @@ public class MojangAPI {
         SkinProfile skin = gson.get().fromJson(reader, (Type) SkinProfile.class);
         connection.disconnect();
         if (skin != null && skin.properties != null && !skin.properties.isEmpty()) {
-            return new Skin(skin.properties.get(0).value, skin.properties.get(0).signature);
+            String json = new String(Base64.getDecoder().decode(skin.properties.get(0).value));
+            Map<String, Object> map = gson.get().fromJson(json, (Type) LinkedTreeMap.class);
+            String skinURL = (String) ((Map) ((Map) map.get("textures")).get("SKIN")).get("url");
+            return new SkinInfo(skin.properties.get(0).value, skin.properties.get(0).signature, skinURL);
         }
         return null;
-    }
-
-    private static class Profile {
-
-        private String id;
-        private String name;
     }
 
     private static class SkinProfile {
