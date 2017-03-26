@@ -116,7 +116,7 @@ public class SkinService {
             }
 
             ImageWrapper skin = ImageWrapper.createTransparentImage(64, 64);
-            skin.getImage().setRGB(8, 8, 8, 8, rgb, 0, 8);
+            skin.drawImage(headImage, 8, 8);
 
             SkinRequest skinRequest = skinManager.requestSkin(skin, req.ip());
             if (skinRequest.isError()) {

@@ -9,8 +9,8 @@ import lombok.RequiredArgsConstructor;
 public class SkinRequest {
     private final ImageWrapper image;
     private final String ip;
-    private boolean finished = false;
-    private boolean error = false;
+    private volatile boolean finished = false;
+    private volatile boolean error = false;
     private int timeLeft = 1;
-    private SkinInfo result = null;
+    private volatile SkinInfo result = null;
 }

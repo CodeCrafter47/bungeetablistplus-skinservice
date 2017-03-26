@@ -18,7 +18,7 @@ public class ImageWrapper {
         BufferedImage bufferedImage = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
         for (int x = 0; x < w; x++) {
             for (int y = 0; y < h; y++) {
-                bufferedImage.setRGB(x, y, 0xffffffff);
+                bufferedImage.setRGB(x, y, 0x00000000);
             }
         }
         return new ImageWrapper(bufferedImage);
@@ -55,7 +55,7 @@ public class ImageWrapper {
     public void setAreaTransparent(int x, int y, int w, int h) {
         for (int dx = 0; dx < w; dx++) {
             for (int dy = 0; dy < h; dy++) {
-                image.setRGB(x + dx, y + dy, 0xffffffff);
+                image.setRGB(x + dx, y + dy, 0x00000000);
             }
         }
     }
