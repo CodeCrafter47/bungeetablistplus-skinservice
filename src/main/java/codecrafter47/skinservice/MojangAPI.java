@@ -18,25 +18,31 @@
  */
 package codecrafter47.skinservice;
 
+import codecrafter47.skinservice.database.MinecraftAccount;
 import com.google.common.base.Charsets;
 import com.google.gson.Gson;
 import com.google.gson.internal.LinkedTreeMap;
 import com.google.inject.Singleton;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.http.client.config.RequestConfig;
+import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpPut;
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
+import org.apache.http.entity.mime.MultipartEntityBuilder;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClients;
+import org.apache.http.util.EntityUtils;
 
-import javax.annotation.Nullable;
 import java.io.BufferedReader;
-import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.lang.reflect.Type;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.util.ArrayList;
-import java.util.Base64;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 
 @Slf4j
 @Singleton
@@ -77,6 +83,69 @@ public class MojangAPI {
         return null;
     }
 
+    public boolean updateSkin(MinecraftAccount account, byte[] file) {
+        CloseableHttpClient client = HttpClients.createDefault();
+        try {
+            RequestConfig.Builder config = RequestConfig.copy(RequestConfig.DEFAULT)
+                    .setRedirectsEnabled(true)
+                    .setCircularRedirectsAllowed(false)
+                    .setRelativeRedirectsAllowed(true)
+                    .setMaxRedirects(10);
+
+            ////////////////////////////////////////////////////////////////////////////////////////////////////
+            // authenticate
+            Object payload = new AuthenticatePayload(new Agent("Minecraft"), account.getEmail(), account.getPassword());
+
+            HttpPost authReq = new HttpPost("https://authserver.mojang.com/authenticate");
+            authReq.setConfig(config.build());
+
+            StringEntity stringEntity = new StringEntity(gson.get().toJson(payload));
+            authReq.setEntity(stringEntity);
+            authReq.setHeader("Content-type", "application/json");
+            CloseableHttpResponse authResponse = client.execute(authReq);
+
+            if (authResponse.getStatusLine().getStatusCode() != 200) {
+                authReq.releaseConnection();
+                log.error("/authenticate returned status code " + authResponse.getStatusLine().getStatusCode());
+                return false;
+            }
+
+            AuthenticateResponse auth = gson.get().fromJson(EntityUtils.toString(authResponse.getEntity()), AuthenticateResponse.class);
+
+            ////////////////////////////////////////////////////////////////////////////////////////////////////
+            // upload skin
+            HttpPut uploadPage = new HttpPut("https://api.mojang.com/user/profile/" + auth.selectedProfile.id + "/skin");
+
+            uploadPage.setConfig(config.build());
+            uploadPage.setHeader("Authorization", "Bearer " + auth.accessToken);
+
+            uploadPage.setEntity(MultipartEntityBuilder.create()
+                    .addBinaryBody("file", file, ContentType.create("image/png"), "skin.png")
+                    .addTextBody("model", "")
+                    .build()
+            );
+            CloseableHttpResponse skinResponse = client.execute(uploadPage);
+
+            // check success
+            if (skinResponse.getStatusLine().getStatusCode() != 204) {
+                uploadPage.releaseConnection();
+                log.error("/skin returned status code " + authResponse.getStatusLine().getStatusCode());
+                return false;
+            }
+            // done
+            return true;
+        } catch (IOException ex) {
+            log.error("Unexpected exception", ex);
+        } finally {
+            try {
+                client.close();
+            } catch (IOException e) {
+                log.error("Closing client failed", e);
+            }
+        }
+        return false;
+    }
+
     private static class SkinProfile {
 
         private String id;
@@ -88,5 +157,31 @@ public class MojangAPI {
 
             private String name, value, signature;
         }
+    }
+
+    @RequiredArgsConstructor
+    private static class Agent {
+        private final String name;
+        private final int version = 1;
+    }
+
+    @RequiredArgsConstructor
+    private static class AuthenticatePayload {
+        private final Agent agent;
+        private final String username;
+        private final String password;
+    }
+
+    private static class AuthenticateResponse {
+        private String accessToken;
+        private String clientToken;
+        private List<Profile> availableProfiles;
+        private Profile selectedProfile;
+    }
+
+    private static class Profile {
+        private String id;
+        private String name;
+        private boolean legacy;
     }
 }

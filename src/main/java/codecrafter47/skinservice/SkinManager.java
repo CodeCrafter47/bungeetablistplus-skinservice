@@ -5,33 +5,22 @@ import codecrafter47.skinservice.database.MinecraftAccount;
 import codecrafter47.skinservice.util.ImageWrapper;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
-import de.janmm14.minecraftchangeskin.api.SkinChangeParams;
-import de.janmm14.minecraftchangeskin.api.SkinChanger;
-import de.janmm14.minecraftchangeskin.api.SkinChangerResult;
-import lombok.AllArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.imageio.ImageIO;
 import javax.inject.Inject;
-import javax.inject.Provider;
 import javax.inject.Singleton;
 import java.awt.image.BufferedImage;
-import java.io.File;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.URL;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 @Singleton
@@ -142,51 +131,12 @@ public class SkinManager {
 
         private void createSkin(SkinRequest skinRequest) throws InterruptedException, IOException {
             // save image
-            File tempFile = File.createTempFile("skin", "png");
+            ByteArrayOutputStream tempFile = new ByteArrayOutputStream();
             ImageIO.write(skinRequest.getImage().getImage(), "png", tempFile);
 
             // change skin
-            SkinChangeParams params = SkinChangeParams.Builder.create()
-                    .email(account.getEmail())
-                    .password(account.getPassword())
-                    .image(tempFile)
-                    .build();
-
-            AtomicBoolean finished = new AtomicBoolean(false);
-            AtomicReference<SkinChangerResult> result = new AtomicReference<>();
-
-            SkinChanger.changeSkin(params, (skinChangerResult, throwable) -> {
-                result.set(skinChangerResult);
-                finished.set(true);
-                if (throwable != null) {
-                    log.error("Error fetching skin " + skinRequest, throwable);
-                }
-            });
-
-            // wait until skin is changed
-            while (!finished.get()) {
-                Thread.sleep(1000);
-            }
-            tempFile.delete();
-
-            SkinChangerResult skinChangerResult = result.get();
-            if (skinChangerResult == null) {
-                log.error("SkinChangerResult is null " + skinRequest);
-                stop = true;
-                skinRequest.setError(true);
-                return;
-            }
-
-            if (skinChangerResult == SkinChangerResult.SECURITY_QUESTIONS) {
-                log.error("Security questions for " + account);
-                stop = true;
-                skinRequest.setError(true);
-                return;
-            }
-
-            if (skinChangerResult == SkinChangerResult.UNKNOWN_ERROR) {
-                log.error("Unknown error " + account);
-                stop = true;
+            if (!mojangAPI.updateSkin(account, tempFile.toByteArray())) {
+                log.error("Failed to upload skin");
                 skinRequest.setError(true);
                 return;
             }
@@ -195,8 +145,9 @@ public class SkinManager {
             Thread.sleep(25000);
 
             // check whether we are allowed to fetch data for this skin again?
-            while (System.currentTimeMillis() - lastSkinRequest < 60000) {
-                Thread.sleep(1000);
+            long waitTime = lastSkinRequest + 60000 - System.currentTimeMillis();
+            while (waitTime > 0) {
+                Thread.sleep(waitTime);
             }
 
             // fetch new skin
@@ -212,9 +163,10 @@ public class SkinManager {
                 return;
             }
 
+
+            database.saveSkin(skinRequest.getImage(), newSkin.getSkinURL(), newSkin.getTexturePropertyValue(), newSkin.getTexturePropertySignature());
             skinRequest.setResult(newSkin);
             skinRequest.setFinished(true);
-            database.saveSkin(skinRequest.getImage(), newSkin.getSkinURL(), newSkin.getTexturePropertyValue(), newSkin.getTexturePropertySignature());
             statsTracker.onMojangRequest();
         }
     }
