@@ -145,7 +145,7 @@ public class SkinManager {
             Thread.sleep(25000);
 
             // check whether we are allowed to fetch data for this skin again?
-            long waitTime = lastSkinRequest + 60000 - System.currentTimeMillis();
+            long waitTime = lastSkinRequest + 60000L - System.currentTimeMillis();
             while (waitTime > 0) {
                 Thread.sleep(waitTime);
             }
