@@ -83,7 +83,8 @@ public class MojangAPI {
         return null;
     }
 
-    public boolean updateSkin(MinecraftAccount account, byte[] file) {
+    public AuthenticateResponse authenticate(MinecraftAccount account) {
+
         CloseableHttpClient client = HttpClients.createDefault();
         try {
             RequestConfig.Builder config = RequestConfig.copy(RequestConfig.DEFAULT)
@@ -107,10 +108,31 @@ public class MojangAPI {
             if (authResponse.getStatusLine().getStatusCode() != 200) {
                 authReq.releaseConnection();
                 log.error("/authenticate returned status code " + authResponse.getStatusLine().getStatusCode());
-                return false;
+                return null;
             }
 
             AuthenticateResponse auth = gson.get().fromJson(EntityUtils.toString(authResponse.getEntity()), AuthenticateResponse.class);
+            return auth;
+        } catch (IOException ex) {
+            log.error("Unexpected exception", ex);
+        } finally {
+            try {
+                client.close();
+            } catch (IOException e) {
+                log.error("Closing client failed", e);
+            }
+        }
+        return null;
+    }
+
+    public boolean updateSkin(MinecraftAccount account, AuthenticateResponse auth, byte[] file) {
+        CloseableHttpClient client = HttpClients.createDefault();
+        try {
+            RequestConfig.Builder config = RequestConfig.copy(RequestConfig.DEFAULT)
+                    .setRedirectsEnabled(true)
+                    .setCircularRedirectsAllowed(false)
+                    .setRelativeRedirectsAllowed(true)
+                    .setMaxRedirects(10);
 
             ////////////////////////////////////////////////////////////////////////////////////////////////////
             // upload skin
@@ -129,7 +151,7 @@ public class MojangAPI {
             // check success
             if (skinResponse.getStatusLine().getStatusCode() != 204) {
                 uploadPage.releaseConnection();
-                log.error("/skin returned status code " + authResponse.getStatusLine().getStatusCode());
+                log.error("/skin returned status code " + skinResponse.getStatusLine().getStatusCode());
                 return false;
             }
             // done
@@ -172,7 +194,7 @@ public class MojangAPI {
         private final String password;
     }
 
-    private static class AuthenticateResponse {
+    public static class AuthenticateResponse {
         private String accessToken;
         private String clientToken;
         private List<Profile> availableProfiles;

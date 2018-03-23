@@ -102,6 +102,8 @@ public class SkinManager {
         private final Thread thread;
         private boolean stop = false;
         private long lastSkinRequest = System.currentTimeMillis();
+        private long authTime = 0;
+        private MojangAPI.AuthenticateResponse auth = null;
 
         private SkinUpdater(MinecraftAccount account) {
             this.account = account;
@@ -116,6 +118,10 @@ public class SkinManager {
                 SkinRequest skinRequest = queue.take();
                 updateQueues();
                 try {
+                    if (auth == null || System.currentTimeMillis() - authTime > 3600000) {
+                        auth = mojangAPI.authenticate(account);
+                        authTime = System.currentTimeMillis();
+                    }
                     createSkin(skinRequest);
                 } catch (Throwable th) {
                     log.error("Unexpected Exception", th);
@@ -135,7 +141,7 @@ public class SkinManager {
             ImageIO.write(skinRequest.getImage().getImage(), "png", tempFile);
 
             // change skin
-            if (!mojangAPI.updateSkin(account, tempFile.toByteArray())) {
+            if (!mojangAPI.updateSkin(account, auth, tempFile.toByteArray())) {
                 log.error("Failed to upload skin");
                 skinRequest.setError(true);
                 return;
