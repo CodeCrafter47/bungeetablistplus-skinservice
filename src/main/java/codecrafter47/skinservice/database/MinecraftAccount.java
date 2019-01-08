@@ -9,6 +9,7 @@ public class MinecraftAccount {
     private String email;
     private String password;
     private UUID uuid;
+    private String accessToken;
 
     @Override
     public String toString() {

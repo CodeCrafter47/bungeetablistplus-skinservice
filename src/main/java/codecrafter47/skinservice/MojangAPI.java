@@ -23,6 +23,7 @@ import com.google.common.base.Charsets;
 import com.google.gson.Gson;
 import com.google.gson.internal.LinkedTreeMap;
 import com.google.inject.Singleton;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.http.client.config.RequestConfig;
@@ -43,17 +44,13 @@ import java.lang.reflect.Type;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.*;
+import java.util.concurrent.ThreadLocalRandom;
 
 @Slf4j
 @Singleton
 public class MojangAPI {
 
-    private static final ThreadLocal<Gson> gson = new ThreadLocal<Gson>() {
-        @Override
-        protected Gson initialValue() {
-            return new Gson();
-        }
-    };
+    private static final ThreadLocal<Gson> gson = ThreadLocal.withInitial(() -> new Gson());
 
     public SkinInfo fetchSkin(UUID uuid) throws IOException, InterruptedException {
         return fetchSkin0(uuid, 10);
@@ -83,7 +80,7 @@ public class MojangAPI {
         return null;
     }
 
-    public AuthenticateResponse authenticate(MinecraftAccount account) {
+    public AuthenticateResponse authenticate(MinecraftAccount account, String clientToken) {
 
         CloseableHttpClient client = HttpClients.createDefault();
         try {
@@ -95,7 +92,7 @@ public class MojangAPI {
 
             ////////////////////////////////////////////////////////////////////////////////////////////////////
             // authenticate
-            Object payload = new AuthenticatePayload(new Agent("Minecraft"), account.getEmail(), account.getPassword());
+            Object payload = new AuthenticatePayload(new Agent("Minecraft"), account.getEmail(), account.getPassword(), clientToken);
 
             HttpPost authReq = new HttpPost("https://authserver.mojang.com/authenticate");
             authReq.setConfig(config.build());
@@ -107,9 +104,11 @@ public class MojangAPI {
 
             if (authResponse.getStatusLine().getStatusCode() != 200) {
                 authReq.releaseConnection();
-                log.error("/authenticate returned status code " + authResponse.getStatusLine().getStatusCode());
+                log.error("/authenticate returned status code " + authResponse.getStatusLine().getStatusCode()
+                        + "\n" + EntityUtils.toString(authResponse.getEntity()));
                 return null;
             }
+            log.info("/authenticate successful");
 
             AuthenticateResponse auth = gson.get().fromJson(EntityUtils.toString(authResponse.getEntity()), AuthenticateResponse.class);
             return auth;
@@ -125,7 +124,104 @@ public class MojangAPI {
         return null;
     }
 
-    public boolean updateSkin(MinecraftAccount account, AuthenticateResponse auth, byte[] file) {
+    public boolean validate(String clientToken, String accessToken) {
+
+        if (accessToken == null)
+            return false;
+
+        CloseableHttpClient client = HttpClients.createDefault();
+        try {
+            RequestConfig.Builder config = RequestConfig.copy(RequestConfig.DEFAULT)
+                    .setRedirectsEnabled(true)
+                    .setCircularRedirectsAllowed(false)
+                    .setRelativeRedirectsAllowed(true)
+                    .setMaxRedirects(10);
+
+            ////////////////////////////////////////////////////////////////////////////////////////////////////
+            // authenticate
+            Object payload = new ValidatePayload(accessToken, clientToken);
+
+            HttpPost authReq = new HttpPost("https://authserver.mojang.com/validate");
+            authReq.setConfig(config.build());
+
+            StringEntity stringEntity = new StringEntity(gson.get().toJson(payload));
+            authReq.setEntity(stringEntity);
+            authReq.setHeader("Content-type", "application/json");
+            CloseableHttpResponse authResponse = client.execute(authReq);
+            authReq.releaseConnection();
+
+            if (authResponse.getStatusLine().getStatusCode() == 204) {
+                log.info("/validate - valid");
+                return true;
+            } else if (authResponse.getStatusLine().getStatusCode() == 403) {
+                log.info("/validate - invalid");
+                return false;
+            } else {
+                authReq.releaseConnection();
+                log.error("/validate returned status code " + authResponse.getStatusLine().getStatusCode()
+                        + "\n" + EntityUtils.toString(authResponse.getEntity()));
+                return false;
+            }
+        } catch (IOException ex) {
+            log.error("Unexpected exception", ex);
+        } finally {
+            try {
+                client.close();
+            } catch (IOException e) {
+                log.error("Closing client failed", e);
+            }
+        }
+        return false;
+    }
+
+    public AuthenticateResponse refresh(MinecraftAccount account, String clientToken) {
+
+        if (account.getAccessToken() == null) {
+            return null;
+        }
+        CloseableHttpClient client = HttpClients.createDefault();
+        try {
+            RequestConfig.Builder config = RequestConfig.copy(RequestConfig.DEFAULT)
+                    .setRedirectsEnabled(true)
+                    .setCircularRedirectsAllowed(false)
+                    .setRelativeRedirectsAllowed(true)
+                    .setMaxRedirects(10);
+
+            ////////////////////////////////////////////////////////////////////////////////////////////////////
+            // authenticate
+            Object payload = new ValidatePayload(account.getAccessToken(), clientToken);
+
+            HttpPost authReq = new HttpPost("https://authserver.mojang.com/refresh");
+            authReq.setConfig(config.build());
+
+            StringEntity stringEntity = new StringEntity(gson.get().toJson(payload));
+            authReq.setEntity(stringEntity);
+            authReq.setHeader("Content-type", "application/json");
+            CloseableHttpResponse authResponse = client.execute(authReq);
+
+            if (authResponse.getStatusLine().getStatusCode() != 200) {
+                authReq.releaseConnection();
+                log.info("/refresh returned status code " + authResponse.getStatusLine().getStatusCode()
+                        + "\n" + EntityUtils.toString(authResponse.getEntity()));
+                return null;
+            }
+            log.info("/refresh successful");
+
+            AuthenticateResponse auth = gson.get().fromJson(EntityUtils.toString(authResponse.getEntity()), AuthenticateResponse.class);
+            return auth;
+        } catch (IOException ex) {
+            log.error("Unexpected exception", ex);
+        } finally {
+            try {
+                client.close();
+            } catch (IOException e) {
+                log.error("Closing client failed", e);
+            }
+        }
+        return null;
+    }
+
+    public boolean updateSkin(MinecraftAccount account, byte[] file) {
         CloseableHttpClient client = HttpClients.createDefault();
         try {
             RequestConfig.Builder config = RequestConfig.copy(RequestConfig.DEFAULT)
@@ -136,10 +232,10 @@ public class MojangAPI {
 
             ////////////////////////////////////////////////////////////////////////////////////////////////////
             // upload skin
-            HttpPut uploadPage = new HttpPut("https://api.mojang.com/user/profile/" + auth.selectedProfile.id + "/skin");
+            HttpPut uploadPage = new HttpPut("https://api.mojang.com/user/profile/" + account.getUuid().toString().replace("-", "") + "/skin");
 
             uploadPage.setConfig(config.build());
-            uploadPage.setHeader("Authorization", "Bearer " + auth.accessToken);
+            uploadPage.setHeader("Authorization", "Bearer " + account.getAccessToken());
 
             uploadPage.setEntity(MultipartEntityBuilder.create()
                     .addBinaryBody("file", file, ContentType.create("image/png"), "skin.png")
@@ -192,8 +288,16 @@ public class MojangAPI {
         private final Agent agent;
         private final String username;
         private final String password;
+        private final String clientToken;
     }
 
+    @RequiredArgsConstructor
+    private static class ValidatePayload {
+        private final String accessToken;
+        private final String clientToken;
+    }
+
+    @Getter
     public static class AuthenticateResponse {
         private String accessToken;
         private String clientToken;

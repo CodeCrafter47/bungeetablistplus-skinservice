@@ -23,6 +23,9 @@ public class CommandLineOptions {
     @Parameter(names = "--db-username", required = true)
     String dbUsername = "user";
 
+    @Parameter(names = "--clientToken", required = false)
+    String clientToken = "7a3daf4f813548f39aa2f374e3c0b51a";
+
     @Parameter(names = "--db-password", required = true)
     String dbPassword = "secret";
 

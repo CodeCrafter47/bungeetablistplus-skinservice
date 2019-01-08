@@ -30,6 +30,7 @@ public class SkinManager {
     private final Database database;
     private final MojangAPI mojangAPI;
     private final StatsTracker statsTracker;
+    private final CommandLineOptions commandLineOptions;
     private final BlockingQueue<SkinRequest> queue = new LinkedBlockingQueue<>();
     private final List<SkinRequest> secondaryQueue = Collections.synchronizedList(new LinkedList<>());
 
@@ -41,10 +42,11 @@ public class SkinManager {
     private final AtomicInteger accounts = new AtomicInteger(0);
 
     @Inject
-    public SkinManager(Database database, MojangAPI mojangAPI, StatsTracker statsTracker) {
+    public SkinManager(Database database, MojangAPI mojangAPI, StatsTracker statsTracker, CommandLineOptions commandLineOptions) {
         this.database = database;
         this.mojangAPI = mojangAPI;
         this.statsTracker = statsTracker;
+        this.commandLineOptions = commandLineOptions;
         for (MinecraftAccount minecraftAccount : database.getAccounts()) {
             new SkinUpdater(minecraftAccount);
             accounts.getAndIncrement();
@@ -90,10 +92,10 @@ public class SkinManager {
         int timeLeft = 1;
         int accounts = this.accounts.get();
         for (SkinRequest skinRequest : queue) {
-            skinRequest.setTimeLeft(accounts > 0 ? (timeLeft++)/ accounts : Integer.MAX_VALUE);
+            skinRequest.setTimeLeft(accounts > 0 ? (timeLeft++) / accounts : Integer.MAX_VALUE);
         }
         for (SkinRequest skinRequest : secondaryQueue) {
-            skinRequest.setTimeLeft(accounts > 0 ? (timeLeft++)/ accounts : Integer.MAX_VALUE);
+            skinRequest.setTimeLeft(accounts > 0 ? (timeLeft++) / accounts : Integer.MAX_VALUE);
         }
     }
 
@@ -103,7 +105,6 @@ public class SkinManager {
         private boolean stop = false;
         private long lastSkinRequest = System.currentTimeMillis();
         private long authTime = 0;
-        private MojangAPI.AuthenticateResponse auth = null;
 
         private SkinUpdater(MinecraftAccount account) {
             this.account = account;
@@ -118,15 +119,34 @@ public class SkinManager {
                 SkinRequest skinRequest = queue.take();
                 updateQueues();
                 try {
-                    if (auth == null || System.currentTimeMillis() - authTime > 3600000) {
-                        auth = mojangAPI.authenticate(account);
+                    while (account.getAccessToken() == null || System.currentTimeMillis() - authTime > 3600000) {
+
+                        if (!mojangAPI.validate(commandLineOptions.clientToken, account.getAccessToken())) {
+                            Thread.sleep(1000);
+                            MojangAPI.AuthenticateResponse auth = mojangAPI.refresh(account, commandLineOptions.clientToken);
+                            if (auth == null) {
+                                Thread.sleep(1000);
+                                auth = mojangAPI.authenticate(account, commandLineOptions.clientToken);
+                            }
+
+                            Thread.sleep(1000);
+                            account.setAccessToken(auth == null ? null : auth.getAccessToken());
+                            database.updateAccessToken(account);
+                        }
                         authTime = System.currentTimeMillis();
+                        if (account.getAccessToken() == null) {
+                            accounts.getAndDecrement();
+                            Thread.sleep(900000);
+                            accounts.getAndIncrement();
+                        }
                     }
                     createSkin(skinRequest);
                 } catch (Throwable th) {
                     log.error("Unexpected Exception", th);
                     skinRequest.setError(true);
                     skinRequest.setFinished(true);
+                }
+                if (skinRequest.isError()) {
                     accounts.getAndDecrement();
                     Thread.sleep(900000);
                     accounts.getAndIncrement();
@@ -141,7 +161,7 @@ public class SkinManager {
             ImageIO.write(skinRequest.getImage().getImage(), "png", tempFile);
 
             // change skin
-            if (!mojangAPI.updateSkin(account, auth, tempFile.toByteArray())) {
+            if (!mojangAPI.updateSkin(account, tempFile.toByteArray())) {
                 log.error("Failed to upload skin");
                 skinRequest.setError(true);
                 return;

@@ -55,7 +55,7 @@ public class Database {
 
     public void saveSkin(ImageWrapper skin, String skinURL, String texturePropertyValue, String texturePropertySignature) {
         try(Connection connection = sql2o.open()) {
-            connection.createQuery("INSERT INTO skins (hashFace, hashHead, hash, skinUrl, texturePropertyValue, texturePropertySignature) VALUES (:hashFace, :hashHead, :hash, :skinUrl, :texturePropertyValue, :texturePropertySignature)")
+            connection.createQuery("INSERT INTO skins (hashFace, hashHead, hash, skinUrl, texturePropertyValue, texturePropertySignature, created) VALUES (:hashFace, :hashHead, :hash, :skinUrl, :texturePropertyValue, :texturePropertySignature, NOW())")
                     .addParameter("hashFace", skin.getSubimage(8, 8, 8, 8).sha512())
                     .addParameter("hashHead", skin.getSubimage(0, 0, 64, 16).sha512())
                     .addParameter("hash", skin.sha512())
@@ -70,6 +70,15 @@ public class Database {
         try(Connection connection = sql2o.open()) {
             return connection.createQuery("SELECT * FROM accounts")
                     .executeAndFetch(MinecraftAccount.class);
+        }
+    }
+
+    public void updateAccessToken(MinecraftAccount account) {
+        try(Connection connection = sql2o.open()) {
+            connection.createQuery("UPDATE accounts SET accessToken=:accessToken WHERE uuid=:uuid")
+                    .addParameter("accessToken", account.getAccessToken())
+                    .addParameter("uuid", account.getUuid())
+                    .executeUpdate();
         }
     }
 
